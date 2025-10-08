@@ -8,10 +8,19 @@ import { BookDetailModal } from "@/components/BookDetailModal";
 import { LoanDialog } from "@/components/LoanDialog";
 import { BookFormDialog } from "@/components/BookFormDialog";
 import { Button } from "@/components/ui/button";
-import { Plus, Library, BookOpen, List, Settings } from "lucide-react";
+import { Plus, Library, BookOpen, List, Settings, LayoutGrid, ArrowUpDown } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+type GridSize = "small" | "medium" | "large" | "xl";
+type SortOption = "none" | "title-asc" | "title-desc" | "author-asc" | "author-desc";
 
 const Index = () => {
   const [books, setBooks] = useState<Book[]>([]);
@@ -25,6 +34,8 @@ const Index = () => {
   const [bookToLoan, setBookToLoan] = useState<Book | null>(null);
   const [bookFormOpen, setBookFormOpen] = useState(false);
   const [bookToEdit, setBookToEdit] = useState<Book | null>(null);
+  const [gridSize, setGridSize] = useState<GridSize>("medium");
+  const [sortOption, setSortOption] = useState<SortOption>("none");
 
   // Carregar livros
   useEffect(() => {
@@ -46,7 +57,7 @@ const Index = () => {
 
   // Filtros e busca (cliente-side)
   const filteredBooks = useMemo(() => {
-    return books.filter((book) => {
+    let result = books.filter((book) => {
       // Busca
       const searchLower = searchQuery.toLowerCase();
       const matchesSearch =
@@ -63,7 +74,27 @@ const Index = () => {
 
       return matchesSearch && matchesStatus && matchesFormat;
     });
-  }, [books, searchQuery, statusFilter, formatFilter]);
+
+    // Ordenação
+    if (sortOption !== "none") {
+      result = [...result].sort((a, b) => {
+        switch (sortOption) {
+          case "title-asc":
+            return a.titulo.localeCompare(b.titulo, "pt-BR");
+          case "title-desc":
+            return b.titulo.localeCompare(a.titulo, "pt-BR");
+          case "author-asc":
+            return a.autores[0]?.localeCompare(b.autores[0] || "", "pt-BR") || 0;
+          case "author-desc":
+            return b.autores[0]?.localeCompare(a.autores[0] || "", "pt-BR") || 0;
+          default:
+            return 0;
+        }
+      });
+    }
+
+    return result;
+  }, [books, searchQuery, statusFilter, formatFilter, sortOption]);
 
   const handleViewDetails = (book: Book) => {
     setSelectedBook(book);
@@ -163,6 +194,28 @@ const Index = () => {
     favoritos: books.filter((b) => b.favorito).length,
   };
 
+  const gridSizeClasses = {
+    small: "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6",
+    medium: "sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4",
+    large: "sm:grid-cols-2 lg:grid-cols-3",
+    xl: "sm:grid-cols-1 md:grid-cols-2",
+  };
+
+  const gridSizeLabels = {
+    small: "Pequeno",
+    medium: "Médio",
+    large: "Grande",
+    xl: "Extra Grande",
+  };
+
+  const sortLabels = {
+    none: "Sem ordenação",
+    "title-asc": "Título (A-Z)",
+    "title-desc": "Título (Z-A)",
+    "author-asc": "Autor (A-Z)",
+    "author-desc": "Autor (Z-A)",
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -185,6 +238,42 @@ const Index = () => {
                 Empréstimos
               </Button>
             </Link>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" aria-label="Ordenar">
+                  <ArrowUpDown className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {(Object.keys(sortLabels) as SortOption[]).map((option) => (
+                  <DropdownMenuItem
+                    key={option}
+                    onClick={() => setSortOption(option)}
+                    className={sortOption === option ? "bg-accent" : ""}
+                  >
+                    {sortLabels[option]}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" aria-label="Tamanho da grade">
+                  <LayoutGrid className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {(Object.keys(gridSizeClasses) as GridSize[]).map((size) => (
+                  <DropdownMenuItem
+                    key={size}
+                    onClick={() => setGridSize(size)}
+                    className={gridSize === size ? "bg-accent" : ""}
+                  >
+                    {gridSizeLabels[size]}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Link to="/configuracoes">
               <Button variant="ghost" size="icon" aria-label="Configurações">
                 <Settings className="h-5 w-5" />
@@ -218,7 +307,7 @@ const Index = () => {
             <p className="text-muted-foreground">Carregando livros...</p>
           </div>
         ) : filteredBooks.length > 0 ? (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className={`grid gap-6 ${gridSizeClasses[gridSize]}`}>
             {filteredBooks.map((book) => (
               <BookCard
                 key={book.id}
